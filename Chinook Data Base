@@ -1,0 +1,125 @@
+--Show Customers (their full names, customer ID, and country) 
+--who are not in the US. (Hint: != or <> can be used to say "is not equal to").
+SELECT FIRSTNAME, LASTNAME, COUNTRY
+FROM CHINOOK.CUSTOMERS
+WHERE Country NOT IN ('USA')
+    
+--Show only the Customers from Brazil
+SELECT FIRSTNAME, LASTNAME, COUNTRY
+    FROM CHINOOK.CUSTOMERS
+    WHERE Country IN ('Brazil');
+    
+--Find the Invoices of customers who are from Brazil.
+--The resulting table should show the customer's full name, Invoice ID, Date of the invoice, and billing country.
+SELECT  CC.FIRSTNAME, CC.LASTNAME, CC.COUNTRY,
+        IV.INVOICEID,IV.INVOICEID,IV.BILLINGCOUNTRY   
+FROM CHINOOK.CUSTOMERS CC
+JOIN invoices IV
+    ON CC.CUSTOMERID=IV.INVOICEID
+    WHERE COUNTRY IN ('Brazil');
+
+-- Show the Employees who are Sales Agents.
+SELECT FIRSTNAME,LASTNAME,TITLE
+    FROM EMPLOYEES
+    WHERE TITLE='Sales Support Agent';
+    
+-- Provide a query that shows the invoices associated with each sales agent. 
+--The resulting table should include the Sales Agent's full name.
+SELECT 
+    EMP.FIRSTNAME,EMP.LASTNAME,
+    INV.INVOICEID
+    FROM EMPLOYEES EMP
+    JOIN CUSTOMERS c ON EMP.EMPLOYEEID = c.SUPPORTREPID
+    JOIN INVOICES INV ON C.CUSTOMERID = INV.CUSTOMERID
+    WHERE EMP.Title = 'Sales Support Agent';
+    
+-- Show the Invoice Total, Customer name, Country, and Sales Agent name for all invoices and customers.
+
+SELECT 
+    IV.Total AS InvoiceTotal, 
+    cli.FirstName AS CustomerFirstName, 
+    cli.LastName AS CustomerLastName, 
+    cli.Country, 
+    stf.FirstName AS SalesAFirstName, 
+    stf.LastName AS SalesALastName
+FROM 
+    invoices IV
+JOIN 
+    customers cli ON IV.CustomerId = cli.CustomerId
+JOIN 
+    employees stf ON stf.EmployeeId = stf.EmployeeId;
+
+-- How many Invoices were there in 2009?
+SELECT COUNT (INVOICEID) AS invoice_count
+    FROM invoices
+   WHERE strftime('%Y',InvoiceDate)='2009';
+
+
+-- What are the total sales for 2009?
+SELECT SUM (TOTAL) AS sales_count
+    FROM INVOICES 
+    WHERE strftime('%Y',InvoiceDate)='2009';
+
+-- Write a query that includes the purchased track name with each invoice line ID.
+SELECT ST.NAME, IVI.INVOICELINEID
+    FROM TRACKS ST
+    JOIN INVOICE_ITEMS IVI
+    ON ST.TRACKID=IVI.INVOICELINEID;
+
+-- Write a query that includes the purchased track name AND artist name with each invoice line ID.
+SELECT 
+    TRS.NAME AS TRACK_NAME,
+    ARTS.NAME AS ARTIST_NAME, 
+    ILI.INVOICELINEID AS INVOICE_LINE_ID
+FROM 
+    TRACKS TRS
+JOIN ARTISTS ARTS
+    ON ARTS.ARTISTID=TRS.TRACKID
+JOIN INVOICE_ITEMS ILI
+    ON TRS.TRACKID=ILI.TRACKID;
+   
+    
+--Provide a query that shows all the Tracks, and include the Album name, Media type, and Genre.
+SELECT TRS.NAME AS TRACKS, 
+        ALB.TITLE AS ALBUM_NAME,
+        MT.NAME AS MEDIA_TYPE,
+        GEN.NAME AS GENERE_NAME
+FROM TRACKS TRS
+JOIN ALBUMS ALB
+    ON TRS.ALBUMID=ALB.ALBUMID
+JOIN MEDIA_TYPES MT ON TRS.MEDIATYPEID=MT.MEDIATYPEID
+JOIN GENRES GEN ON TRS.GENREID=GEN.GENREID;
+
+-- Show the total sales made by each sales agent.
+SELECT SUM(IV.TOTAL) AS TOTAL_SALES,
+       EMP.FIRSTNAME,EMP.LASTNAME
+    FROM INVOICES IV
+    JOIN CUSTOMERS CUS
+    ON IV.CUSTOMERID=CUS.CUSTOMERID
+    JOIN EMPLOYEES EMP ON CUS.SUPPORTREPID=EMP.EMPLOYEEID
+    GROUP BY EMP.FIRSTNAME, EMP.LASTNAME
+    ORDER BY TOTAL_SALES DESC;
+
+-- Which sales agent made the most dollars in sales in 2009?
+SELECT MAX(IV.TOTAL) AS TOP_SELLER,
+       EMP.FIRSTNAME || ' ' || LASTNAME AS FULL_NAME
+    FROM EMPLOYEES EMP
+    JOIN INVOICES IV
+    ON EMP.EMPLOYEEID=IV.INVOICEID
+    WHERE strftime('%Y', IV.InvoiceDate) = '2009'
+    GROUP BY EMP.EmployeeId
+    ORDER BY TOTAL DESC
+    LIMIT 1;
+    
+-- List customers who have spent more than $10 total.
+
+   SELECT CLI.FIRSTNAME || ' ' || LASTNAME AS FULL_NAME,
+          SUM(II.UNITPRICE * II.QUANTITY) AS TOTAL_SPENT
+    FROM CUSTOMERS CLI
+    JOIN INVOICES IV
+    ON CLI.CUSTOMERID=IV.INVOICEID
+    JOIN INVOICE_ITEMS II
+    ON IV.INVOICEID=II.INVOICEID
+    GROUP BY CLI.CUSTOMERID
+    HAVING SUM (II.UNITPRICE * II.QUANTITY)>10
+    ORDER BY TOTAL_SPENT DESC;
