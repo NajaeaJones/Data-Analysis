@@ -1,0 +1,54 @@
+CREATE TABLE makeup_store (id INTEGER PRIMARY KEY, name TEXT,quantity INTEGER, reviews INTEGER);
+
+    INSERT INTO makeup_store VALUES(1, 'lip oil',140,39);
+    INSERT INTO makeup_store VALUES(2, 'lip pencil',200, 80);
+    INSERT INTO makeup_store VALUES(3, 'foundation',115, 66);
+    INSERT INTO makeup_store VALUES(4, 'concealer',250, 24);
+    INSERT INTO makeup_store VALUES(5, 'primer', 600, 11);
+    INSERT INTO makeup_store VALUES(6, 'setting spray',375, 80);
+    INSERT INTO makeup_store VALUES(7, 'eyeliner',400,314);
+    INSERT INTO makeup_store VALUES(8, 'mascara',800, 628);
+    INSERT INTO makeup_store VALUES(9, 'highlighter',310, 212);
+    INSERT INTO makeup_store VALUES(10,'powder blush',520, 357);
+    INSERT INTO makeup_store VALUES(11, 'liquid blush',340, 113);
+    INSERT INTO makeup_store VALUES(12, 'makeup remover',800, 720);
+    INSERT INTO makeup_store VALUES(13, 'lip balm',500, 411);
+    INSERT INTO makeup_store VALUES(14, 'bronzer',525, 425);
+    INSERT INTO makeup_store VALUES(15, 'face paint',250, 123);
+    
+    -- How many lip oils are in stock? --
+   SELECT SUM(quantity) AS Lip_Oil_quanity
+    FROM makeup_store
+    WHERE name='lip oil';
+    
+    -- How many setting sprays are in stock --
+    SELECT SUM(quantity) AS Setting_Spray_Quanity
+        FROM makeup_store
+        WHERE name='setting spray';
+        
+    --How many reviews were left under the concealers?--
+    SELECT SUM(reviews) AS Concealer_Reviews
+        FROM makeup_store
+        WHERE name='setting spray';
+        
+    -- How many reviews does face paint have? --
+    SELECT SUM(reviews) AS face_paint_reviews
+        FROM makeup_store
+        WHERE name='face paint';
+        
+    -- How many bronzers are left?
+    SELECT SUM(quantity) AS Bronzers
+        FROM makeup_store
+        WHERE name='bronzer';
+        
+    -- Which products have 200 reviews or more? --
+    SELECT *
+        FROM makeup_store
+        WHERE reviews >200
+        ORDER BY reviews;
+
+    -- Which products have less than 500 items in stock?--
+    SELECT* 
+        FROM makeup_store
+        WHERE quantity <500
+        ORDER BY reviews;
