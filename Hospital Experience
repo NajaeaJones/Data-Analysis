@@ -1,0 +1,632 @@
+
+-- 01. Verify raw dataset size, hospitals, and HCAHPS measures
+
+SELECT
+    "HCAHPS Measure ID",
+    "HCAHPS Question"
+FROM hcahps_hospital
+WHERE "HCAHPS Measure ID" IN (
+    'H_RECMND_LINEAR_SCORE',
+    'H_COMP_1_LINEAR_SCORE',
+    'H_COMP_2_LINEAR_SCORE',
+    'H_COMP_5_LINEAR_SCORE',
+    'H_COMP_6_LINEAR_SCORE',
+    'H_CLEAN_LINEAR_SCORE',
+    'H_QUIET_LINEAR_SCORE'
+)
+GROUP BY
+    "HCAHPS Measure ID",
+    "HCAHPS Question"
+ORDER BY "HCAHPS Measure ID";
+
+-- 02. Inspect sample rows from the raw HCAHPS dataset
+
+CREATE TABLE hospital_experience AS
+SELECT
+    "Facility ID" AS facility_id,
+    MAX("Facility Name") AS facility_name,
+    MAX("State") AS state,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_COMP_1_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS nurse_communication,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_COMP_2_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS doctor_communication,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_COMP_5_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS medication_communication,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_COMP_6_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS discharge_information,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_CLEAN_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS cleanliness,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_QUIET_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS quietness,
+
+    MAX(
+        CASE
+            WHEN "HCAHPS Measure ID" = 'H_RECMND_LINEAR_SCORE'
+            THEN CAST(NULLIF(NULLIF("HCAHPS Linear Mean Value", 'Not Applicable'), 'Not Available') AS NUMERIC)
+        END
+    ) AS recommend_score
+
+FROM hcahps_hospital
+
+WHERE "HCAHPS Measure ID" IN (
+    'H_COMP_1_LINEAR_SCORE',
+    'H_COMP_2_LINEAR_SCORE',
+    'H_COMP_5_LINEAR_SCORE',
+    'H_COMP_6_LINEAR_SCORE',
+    'H_CLEAN_LINEAR_SCORE',
+    'H_QUIET_LINEAR_SCORE',
+    'H_RECMND_LINEAR_SCORE'
+)
+
+GROUP BY "Facility ID";
+
+-- 03. Verify selected HCAHPS measures for the analysis
+
+SELECT COUNT(*) AS hospitals
+FROM hospital_experience;
+
+-- 04. Create hospital-level patient experience analysis table
+
+SELECT *
+FROM hospital_experience
+LIMIT 5;
+
+-- 05. Verify number of hospitals in analysis table
+
+SELECT
+    COUNT(*) AS total_hospitals,
+
+    COUNT(nurse_communication) AS nurse_available,
+    COUNT(doctor_communication) AS doctor_available,
+    COUNT(medication_communication) AS medication_available,
+    COUNT(discharge_information) AS discharge_available,
+    COUNT(cleanliness) AS cleanliness_available,
+    COUNT(quietness) AS quietness_available,
+    COUNT(recommend_score) AS recommend_available
+
+FROM hospital_experience;
+
+-- 06. Inspect hospital-level analysis table
+
+SELECT
+    COUNT(*) AS hospitals_missing_scores
+FROM hospital_experience
+WHERE recommend_score IS NULL;
+
+-- 07. Check availability of selected HCAHPS scores
+
+SELECT
+    state,
+    COUNT(*) AS hospitals_missing_scores
+FROM hospital_experience
+WHERE recommend_score IS NULL
+GROUP BY state
+ORDER BY hospitals_missing_scores DESC;
+
+-- 08. Identify hospitals missing recommendation scores
+
+SELECT
+    COUNT(*) AS hospitals_missing_scores
+FROM hospital_experience
+WHERE recommend_score IS NULL;
+
+-- 09. Analyze missing HCAHPS scores by state
+
+SELECT
+    state,
+    COUNT(*) AS hospitals_missing_scores
+FROM hospital_experience
+WHERE recommend_score IS NULL
+GROUP BY state
+ORDER BY hospitals_missing_scores DESC;
+
+-- 10. Calculate percentage of hospitals with missing scores by state
+
+SELECT
+    state,
+    COUNT(*) AS total_hospitals,
+    SUM(
+        CASE
+            WHEN recommend_score IS NULL THEN 1
+            ELSE 0
+        END
+    ) AS missing_scores,
+    ROUND(
+        100.0 * SUM(
+            CASE
+                WHEN recommend_score IS NULL THEN 1
+                ELSE 0
+            END
+        ) / COUNT(*),
+        1
+    ) AS missing_percent
+FROM hospital_experience
+GROUP BY state
+ORDER BY missing_percent DESC;
+
+
+-- 11. Calculate average score for each patient experience measure
+
+SELECT
+    ROUND(AVG(nurse_communication), 2) AS avg_nurse_communication,
+    ROUND(AVG(doctor_communication), 2) AS avg_doctor_communication,
+    ROUND(AVG(medication_communication), 2) AS avg_medication_communication,
+    ROUND(AVG(discharge_information), 2) AS avg_discharge_information,
+    ROUND(AVG(cleanliness), 2) AS avg_cleanliness,
+    ROUND(AVG(quietness), 2) AS avg_quietness,
+    ROUND(AVG(recommend_score), 2) AS avg_recommend_score
+FROM hospital_experience;
+
+-- 12. Measure relationship between patient experience and recommendation
+
+SELECT
+    'Nurse Communication' AS measure,
+    ROUND(
+        (
+            COUNT(*) * SUM(nurse_communication * recommend_score)
+            - SUM(nurse_communication) * SUM(recommend_score)
+        )
+        /
+        SQRT(
+            (
+                COUNT(*) * SUM(nurse_communication * nurse_communication)
+                - SUM(nurse_communication) * SUM(nurse_communication)
+            )
+            *
+            (
+                COUNT(*) * SUM(recommend_score * recommend_score)
+                - SUM(recommend_score) * SUM(recommend_score)
+            )
+        ),
+        3
+    ) AS correlation
+FROM hospital_experience
+WHERE nurse_communication IS NOT NULL
+  AND recommend_score IS NOT NULL
+
+UNION ALL
+
+SELECT
+    'Doctor Communication',
+    ROUND(
+        (
+            COUNT(*) * SUM(doctor_communication * recommend_score)
+            - SUM(doctor_communication) * SUM(recommend_score)
+        )
+        /
+        SQRT(
+            (
+                COUNT(*) * SUM(doctor_communication * doctor_communication)
+                - SUM(doctor_communication) * SUM(doctor_communication)
+            )
+            *
+            (
+                COUNT(*) * SUM(recommend_score * recommend_score)
+                - SUM(recommend_score) * SUM(recommend_score)
+            )
+        ),
+        3
+    )
+FROM hospital_experience
+WHERE doctor_communication IS NOT NULL
+  AND recommend_score IS NOT NULL
+
+UNION ALL
+
+SELECT
+    'Medication Communication',
+    ROUND(
+        (
+            COUNT(*) * SUM(medication_communication * recommend_score)
+            - SUM(medication_communication) * SUM(recommend_score)
+        )
+        /
+        SQRT(
+            (
+                COUNT(*) * SUM(medication_communication * medication_communication)
+                - SUM(medication_communication) * SUM(medication_communication)
+            )
+            *
+            (
+                COUNT(*) * SUM(recommend_score * recommend_score)
+                - SUM(recommend_score) * SUM(recommend_score)
+            )
+        ),
+        3
+    )
+FROM hospital_experience
+WHERE medication_communication IS NOT NULL
+  AND recommend_score IS NOT NULL
+
+UNION ALL
+
+SELECT
+    'Discharge Information',
+    ROUND(
+        (
+            COUNT(*) * SUM(discharge_information * recommend_score)
+            - SUM(discharge_information) * SUM(recommend_score)
+        )
+        /
+        SQRT(
+            (
+                COUNT(*) * SUM(discharge_information * discharge_information)
+                - SUM(discharge_information) * SUM(discharge_information)
+            )
+            *
+            (
+                COUNT(*) * SUM(recommend_score * recommend_score)
+                - SUM(recommend_score) * SUM(recommend_score)
+            )
+        ),
+        3
+    )
+FROM hospital_experience
+WHERE discharge_information IS NOT NULL
+  AND recommend_score IS NOT NULL
+
+UNION ALL
+
+SELECT
+    'Cleanliness',
+    ROUND(
+        (
+            COUNT(*) * SUM(cleanliness * recommend_score)
+            - SUM(cleanliness) * SUM(recommend_score)
+        )
+        /
+        SQRT(
+            (
+                COUNT(*) * SUM(cleanliness * cleanliness)
+                - SUM(cleanliness) * SUM(cleanliness)
+            )
+            *
+            (
+                COUNT(*) * SUM(recommend_score * recommend_score)
+                - SUM(recommend_score) * SUM(recommend_score)
+            )
+        ),
+        3
+    )
+FROM hospital_experience
+WHERE cleanliness IS NOT NULL
+  AND recommend_score IS NOT NULL
+
+UNION ALL
+
+SELECT
+    'Quietness',
+    ROUND(
+        (
+            COUNT(*) * SUM(quietness * recommend_score)
+            - SUM(quietness) * SUM(recommend_score)
+        )
+        /
+        SQRT(
+            (
+                COUNT(*) * SUM(quietness * quietness)
+                - SUM(quietness) * SUM(quietness)
+            )
+            *
+            (
+                COUNT(*) * SUM(recommend_score * recommend_score)
+                - SUM(recommend_score) * SUM(recommend_score)
+            )
+        ),
+        3
+    )
+FROM hospital_experience
+WHERE quietness IS NOT NULL
+  AND recommend_score IS NOT NULL;
+  
+
+-- 13. Identify hospitals with highest recommendation scores
+
+SELECT
+    facility_id,
+    facility_name,
+    state,
+    nurse_communication,
+    doctor_communication,
+    medication_communication,
+    discharge_information,
+    cleanliness,
+    quietness,
+    recommend_score
+FROM hospital_experience
+WHERE recommend_score IS NOT NULL
+ORDER BY recommend_score DESC
+LIMIT 10;
+
+
+-- 14. Compare patient experience across recommendation quartiles
+
+WITH ranked_hospitals AS (
+    SELECT
+        *,
+        NTILE(4) OVER (
+            ORDER BY recommend_score
+        ) AS recommendation_quartile
+    FROM hospital_experience
+    WHERE recommend_score IS NOT NULL
+)
+
+SELECT
+    recommendation_quartile,
+    COUNT(*) AS hospital_count,
+    ROUND(AVG(nurse_communication), 2) AS avg_nurse_communication,
+    ROUND(AVG(doctor_communication), 2) AS avg_doctor_communication,
+    ROUND(AVG(medication_communication), 2) AS avg_medication_communication,
+    ROUND(AVG(discharge_information), 2) AS avg_discharge_information,
+    ROUND(AVG(cleanliness), 2) AS avg_cleanliness,
+    ROUND(AVG(quietness), 2) AS avg_quietness,
+    ROUND(AVG(recommend_score), 2) AS avg_recommend_score
+FROM ranked_hospitals
+GROUP BY recommendation_quartile
+ORDER BY recommendation_quartile;
+
+-- 15. Compare average recommendation scores by state
+
+SELECT
+    state,
+    COUNT(*) AS hospital_count,
+    ROUND(AVG(recommend_score), 2) AS avg_recommend_score,
+    ROUND(AVG(nurse_communication), 2) AS avg_nurse_communication,
+    ROUND(AVG(doctor_communication), 2) AS avg_doctor_communication
+FROM hospital_experience
+WHERE recommend_score IS NOT NULL
+GROUP BY state
+HAVING COUNT(*) >= 20
+ORDER BY avg_recommend_score DESC;
+
+-- 16. Measure experience score differences between recommendation groups
+
+WITH ranked_hospitals AS (
+    SELECT
+        *,
+        NTILE(4) OVER (
+            ORDER BY recommend_score
+        ) AS recommendation_quartile
+    FROM hospital_experience
+    WHERE recommend_score IS NOT NULL
+)
+
+SELECT
+    ROUND(
+        AVG(CASE WHEN recommendation_quartile = 4 THEN nurse_communication END)
+        -
+        AVG(CASE WHEN recommendation_quartile = 1 THEN nurse_communication END),
+        2
+    ) AS nurse_communication_gap,
+
+    ROUND(
+        AVG(CASE WHEN recommendation_quartile = 4 THEN doctor_communication END)
+        -
+        AVG(CASE WHEN recommendation_quartile = 1 THEN doctor_communication END),
+        2
+    ) AS doctor_communication_gap,
+
+    ROUND(
+        AVG(CASE WHEN recommendation_quartile = 4 THEN medication_communication END)
+        -
+        AVG(CASE WHEN recommendation_quartile = 1 THEN medication_communication END),
+        2
+    ) AS medication_communication_gap,
+
+    ROUND(
+        AVG(CASE WHEN recommendation_quartile = 4 THEN discharge_information END)
+        -
+        AVG(CASE WHEN recommendation_quartile = 1 THEN discharge_information END),
+        2
+    ) AS discharge_information_gap,
+
+    ROUND(
+        AVG(CASE WHEN recommendation_quartile = 4 THEN cleanliness END)
+        -
+        AVG(CASE WHEN recommendation_quartile = 1 THEN cleanliness END),
+        2
+    ) AS cleanliness_gap,
+
+    ROUND(
+        AVG(CASE WHEN recommendation_quartile = 4 THEN quietness END)
+        -
+        AVG(CASE WHEN recommendation_quartile = 1 THEN quietness END),
+        2
+    ) AS quietness_gap
+
+FROM ranked_hospitals;
+
+CREATE TABLE hospital_experience_v2 AS
+SELECT
+    [Facility ID],
+    [Facility Name],
+    [State],
+
+    MAX([Number of Completed Surveys]) AS completed_surveys,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_1_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS nurse_communication,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_2_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS doctor_communication,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_5_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS medication_communication,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_6_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS discharge_information,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_CLEAN_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS cleanliness,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_QUIET_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS quietness,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_RECMND_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS recommend_score
+
+FROM hcahps_hospital
+
+GROUP BY
+    [Facility ID],
+    [Facility Name],
+    [State];
+    
+SELECT
+    COUNT(*) AS hospitals,
+    COUNT(completed_surveys) AS hospitals_with_survey_count,
+    MIN(completed_surveys) AS min_surveys,
+    MAX(completed_surveys) AS max_surveys,
+    AVG(completed_surveys) AS avg_surveys
+FROM hospital_experience_v2;
+
+SELECT *
+FROM hospital_experience_v2
+LIMIT 12;
+
+SELECT
+    COUNT(*) AS hospitals,
+    COUNT(completed_surveys) AS hospitals_with_survey_count,
+    MIN(completed_surveys) AS min_surveys,
+    MAX(completed_surveys) AS max_surveys,
+    ROUND(AVG(completed_surveys), 1) AS avg_surveys
+FROM hospital_experience_v2;
+
+DROP TABLE hospital_experience_v2;
+
+CREATE TABLE hospital_experience_v2 AS
+SELECT
+    [Facility ID],
+    [Facility Name],
+    [State],
+
+    MAX(
+        CASE
+            WHEN [Number of Completed Surveys] NOT IN ('Not Available', 'Not Applicable', '')
+            THEN CAST([Number of Completed Surveys] AS INTEGER)
+        END
+    ) AS completed_surveys,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_1_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS nurse_communication,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_2_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS doctor_communication,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_5_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS medication_communication,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_COMP_6_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS discharge_information,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_CLEAN_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS cleanliness,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_QUIET_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS quietness,
+
+    MAX(CASE
+        WHEN [HCAHPS Measure ID] = 'H_RECMND_LINEAR_SCORE'
+        THEN [HCAHPS Linear Mean Value]
+    END) AS recommend_score
+
+FROM hcahps_hospital
+
+GROUP BY
+    [Facility ID],
+    [Facility Name],
+    [State];
+    
+SELECT
+    COUNT(*) AS hospitals,
+    COUNT(completed_surveys) AS hospitals_with_survey_count,
+    MIN(completed_surveys) AS min_surveys,
+    MAX(completed_surveys) AS max_surveys,
+    ROUND(AVG(completed_surveys), 1) AS avg_surveys
+FROM hospital_experience_v2;
+
+SELECT
+    CASE
+        WHEN completed_surveys < 250 THEN 'Small'
+        WHEN completed_surveys < 1000 THEN 'Medium'
+        ELSE 'Large'
+    END AS hospital_size,
+    COUNT(*) AS hospitals,
+    ROUND(AVG(
+        CASE
+            WHEN recommend_score != 'Not Available'
+            THEN CAST(recommend_score AS REAL)
+        END
+    ), 2) AS avg_recommendation,
+    ROUND(AVG(
+        CASE
+            WHEN nurse_communication != 'Not Available'
+            THEN CAST(nurse_communication AS REAL)
+        END
+    ), 2) AS avg_nurse_communication
+FROM hospital_experience_v2
+WHERE completed_surveys != 'Not Available'
+GROUP BY hospital_size
+ORDER BY
+    CASE hospital_size
+        WHEN 'Small' THEN 1
+        WHEN 'Medium' THEN 2
+        WHEN 'Large' THEN 3
+    END;
+  
